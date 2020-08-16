@@ -1,0 +1,170 @@
+#!/bin/sh
+
+# 修改root密码
+password=$(openssl passwd -1 'admin')
+sed -i "s|root::0:0:99999:7:::|root:$password:0:0:99999:7:::|g" /etc/shadow
+
+# 语言设置
+uci set luci.main.lang=zh_cn
+uci set luci.main.mediaurlbase="/luci-static/argon"
+uci commit luci
+
+uci set system.@system[0].timezone=CST-8
+uci set system.@system[0].zonename=Asia/Shanghai
+uci set system.@system[0].hostname=danxiaonuo
+uci commit system
+
+# 设置默认管理IP地址
+uci set network.lan.ipaddr='10.8.1.1'
+uci set network.lan.netmask='255.255.255.0'
+# IPV6设置
+uci set network.globals.ula_prefix="ddaa:8888:1111::/48"
+uci set network.lan.ip6assign='64'
+# 使用内置的 IPv6 管理
+uci set dhcp.lan.ra_management='1'
+# 设置wan口主机名称
+uci set network.wan.hostname='danxiaonuo'
+uci commit network
+
+# dhcp设置
+uci set dhcp.lan.start='0'
+uci set dhcp.lan.limit='255'
+uci -q delete dhcp.@dnsmasq[0].server
+uci add_list dhcp.@dnsmasq[0].server="127.0.0.1#6053"
+uci -q delete dhcp.@dnsmasq[0].filter_aaaa
+uci -q delete dhcp.@dnsmasq[0].resolvfile
+uci add_list dhcp.@dnsmasq[0].noresolv='1'
+uci commit dhcp
+
+# firewall设置
+uci set firewall.@defaults[0]=defaults
+uci set firewall.@defaults[0].input='ACCEPT'
+uci set firewall.@defaults[0].output='ACCEPT'
+uci set firewall.@defaults[0].forward='ACCEPT'
+uci set firewall.@defaults[0].flow_offloading='1'
+uci set firewall.@defaults[0].syn_flood='1'
+uci set firewall.@defaults[0].drop_invalid='1'
+uci set firewall.@defaults[0].fullcone='1'
+uci set firewall.@defaults[0].flow_offloading_hw='1'
+uci set firewall.@zone[0]=zone
+uci set firewall.@zone[0].name='lan'
+uci set firewall.@zone[0].network='lan'
+uci set firewall.@zone[0].input='ACCEPT'
+uci set firewall.@zone[0].output='ACCEPT'
+uci set firewall.@zone[0].forward='ACCEPT'
+uci set firewall.@zone[0].masq='1'
+uci set firewall.@zone[0].mtu_fix='1'
+uci set firewall.@zone[1]=zone
+uci set firewall.@zone[1].name='wan'
+uci set firewall.@zone[1].network='wan wan6'
+uci set firewall.@zone[1].output='ACCEPT'
+uci set firewall.@zone[1].mtu_fix='1'
+uci set firewall.@zone[1].input='ACCEPT'
+uci set firewall.@zone[1].forward='ACCEPT'
+uci set firewall.@zone[1].masq='1'
+uci set firewall.@forwarding[0]=forwarding
+uci set firewall.@forwarding[0].src='lan'
+uci set firewall.@forwarding[0].dest='wan'
+uci commit firewall
+
+# 默认开启网络加速
+uci set flowoffload.@flow[0]=flow
+uci set flowoffload.@flow[0].bbr=1
+uci set flowoffload.@flow[0].flow_offloading_hw=1
+#uci set flowoffload.@flow[0].dns=1
+#uci set flowoffload.@flow[0].dns_server='223.5.5.5,223.6.6.6'
+uci commit flowoffload
+
+# WIFI设置
+uci set wireless.radio0.country='CN'
+uci set wireless.radio0.mu_beamformer='1'
+uci set wireless.radio0.channel='auto'
+uci set wireless.radio0.htmode='HT40'
+uci set wireless.default_radio0.ssid='danxiaonuo-2HZ'
+uci set wireless.default_radio0.encryption='psk2'
+uci set wireless.default_radio0.key='password'
+uci set wireless.default_radio0.ieee80211k='1'
+uci set wireless.default_radio0.ieee80211w='1'
+uci set wireless.radio1.country='CN'
+uci set wireless.radio1.mu_beamformer='1'
+uci set wireless.radio1.channel='auto'
+uci set wireless.radio1.htmode='VHT80'
+uci set wireless.default_radio1.ssid='danxiaonuo-5HZ'
+uci set wireless.default_radio1.encryption='psk2'
+uci set wireless.default_radio1.key='password'
+uci set wireless.default_radio1.ieee80211k='1'
+uci set wireless.default_radio1.ieee80211w='1'
+uci commit wireless
+
+# fstab设置
+uci set fstab.@global[0].anon_mount=1
+uci commit fstab
+
+# samba设置
+uci set samba.@samba[0].name='danxiaonuo'
+uci set samba.@samba[0].description='danxiaonuo'
+uci commit samba
+
+# mwan3设置
+uci set mwan3.wan.enabled='1'
+uci set mwan3.wan.family='ipv4'
+uci set mwan3.wan.initial_state='online'
+uci set mwan3.wan.track_ip='114.114.114.114'
+uci set mwan3.wan.flush_conntrack='ifup'
+uci set mwan3.wan6.enabled='1'
+uci set mwan3.wan6.family='ipv6'
+uci set mwan3.wan6.initial_state='online'
+uci set mwan3.wan6.track_ip='240C::6666'
+uci set mwan3.wan6.flush_conntrack='ifup'
+uci commit mwan3
+
+# 芝麻开门
+echo 0xDEADBEEF > /etc/config/google_fu_mode
+
+# vim设置
+sed -i 's/mouse=/mouse-=/g' /usr/share/vim/*/defaults.vim
+
+# 删除一些页面
+rm -f /usr/lib/lua/luci/view/admin_status/index/mwan.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/upnp.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/ddns.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/minidlna.htm
+
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/aria2.lua
+sed -i 's/services/nas/g' /usr/lib/lua/luci/view/aria2/overview_status.htm
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/hd_idle.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/samba.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/minidlna.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/transmission.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/mjpg-streamer.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/p910nd.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/usb_printer.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/xunlei.lua
+sed -i 's/services/nas/g'  /usr/lib/lua/luci/view/minidlna_status.htm
+
+ln -sf /sbin/ip /usr/bin/ip
+
+# 替换源地址
+sed -i 's/http:/https:/g' /etc/opkg/distfeeds.conf
+sed -i "s/# //g" /etc/opkg/distfeeds.conf
+sed -i 's#downloads.openwrt.org#mirrors.cloud.tencent.com/lede#g' /etc/opkg/distfeeds.conf
+
+# 防火墙设置
+echo "iptables -t nat -A POSTROUTING -s $(uci get network.lan.ipaddr)/24 -j MASQUERADE" > /etc/firewall.user
+echo "ip6tables -t nat -A POSTROUTING -s $(uci get network.globals.ula_prefix) -j MASQUERADE" >> /etc/firewall.user
+echo "iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 53" >> /etc/firewall.user
+echo "iptables -t nat -A PREROUTING -p tcp --dport 53 -j REDIRECT --to-ports 53" >> /etc/firewall.user
+echo "ip6tables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 53" >> /etc/firewall.user
+echo "ip6tables -t nat -A PREROUTING -p tcp --dport 53 -j REDIRECT --to-ports 53" >> /etc/firewall.user
+
+sed -i '/log-facility/d' /etc/dnsmasq.conf
+echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
+
+sed -i 's/cbi.submit\"] = true/cbi.submit\"] = \"1\"/g' /usr/lib/lua/luci/dispatcher.lua
+
+echo 'hsts=0' > /root/.wgetrc
+
+rm -rf /tmp/luci-modulecache/
+rm -f /tmp/luci-indexcache
+
+exit 0

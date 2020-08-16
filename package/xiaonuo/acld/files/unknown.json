@@ -1,0 +1,25 @@
+{
+	"*": {
+		"description": "Access controls for unknown requests",
+		"read": {
+			"file": {
+				"*": [ "*" ]
+			},
+			"ubus": {
+				"service": [ "*" ],
+				"session": ["*"]
+			},
+			"uci": [ "*" ]
+		},
+		"write": {
+			"file": {
+				"*": [ "*" ]
+			},
+			"ubus": {
+				"service": [ "*" ],
+				"session": ["*"]
+			},
+			"uci": [ "*" ]
+		}
+	}
+}
